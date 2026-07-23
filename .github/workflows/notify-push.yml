@@ -45,3 +45,24 @@ jobs:
               }
             }]
           }' "${{ secrets.TEAMS_WEBHOOK_URL }}"
+      - name: Send Teams channel email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.office365.com
+          server_port: 587
+          username: yash.mhatre@exeliqconsulting.com
+          password: ${{ secrets.SMTP_APP_PASSWORD }}
+          subject: "🔔 Push to ${{ github.repository }} (${{ github.ref_name }})"
+          to: ${{ secrets.TEAMS_CHANNEL_EMAIL }}
+          from: GitHub Actions <yash.mhatre@exeliqconsulting.com>
+          body: |
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+            Message: ${{ github.event.head_commit.message }}
+
+            Files changed:
+            ${{ steps.changes.outputs.files }}
+
+            View: ${{ github.event.head_commit.url }}
