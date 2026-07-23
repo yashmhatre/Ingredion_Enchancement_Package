@@ -29,7 +29,7 @@ jobs:
           password: ${{ secrets.SENDGRID_API_KEY }}
           subject: "🔔 Push to ${{ github.repository }} (${{ github.ref_name }})"
           to: ${{ secrets.TEAMS_CHANNEL_EMAIL }}
-          from: GitHub Actions <your-verified-sender-email>
+          from: GitHub Actions <yashmhatre26@gmail.com>
           body: |
             Repository: ${{ github.repository }}
             Branch: ${{ github.ref_name }}
