@@ -11,11 +11,28 @@ jobs:
       - name: Notify Teams
         run: |
           curl -H "Content-Type: application/json" -d '{
-            "workflow": "Pull Request Notification",
-            "status": "${{ github.event.action }}",
-            "repository": "${{ github.repository }}",
-            "branch": "${{ github.head_ref }}",
-            "actor": "${{ github.actor }}",
-            "run_url": "${{ github.event.pull_request.html_url }}",
-            "message": "${{ github.event.pull_request.title }} | Files: ${{ github.event.pull_request.changed_files }}, +${{ github.event.pull_request.additions }}/-${{ github.event.pull_request.deletions }}"
+            "type": "message",
+            "attachments": [{
+              "contentType": "application/vnd.microsoft.card.adaptive",
+              "content": {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                  {"type": "TextBlock", "text": "🔀 PR ${{ github.event.action }}: ${{ github.event.pull_request.title }}", "weight": "bolder", "size": "medium"},
+                  {"type": "FactSet", "facts": [
+                    {"title": "Branch", "value": "${{ github.head_ref }}"},
+                    {"title": "Author", "value": "${{ github.actor }}"},
+                    {"title": "Files changed", "value": "${{ github.event.pull_request.changed_files }}"},
+                    {"title": "Additions", "value": "+${{ github.event.pull_request.additions }}"},
+                    {"title": "Deletions", "value": "-${{ github.event.pull_request.deletions }}"}
+                  ]}
+                ],
+                "actions": [{
+                  "type": "Action.OpenUrl",
+                  "title": "View PR",
+                  "url": "${{ github.event.pull_request.html_url }}"
+                }]
+              }
+            }]
           }' "${{ secrets.TEAMS_WEBHOOK_URL }}"
