@@ -1,0 +1,25 @@
+name: Notify Teams on PR
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Teams
+        run: |
+          curl -H "Content-Type: application/json" -d '{
+            "workflow": "Pull Request Notification",
+            "status": "${{ github.event.action }}",
+            "repository": "${{ github.repository }}",
+            "branch": "${{ github.head_ref }}",
+            "actor": "${{ github.actor }}",
+            "run_url": "${{ github.event.pull_request.html_url }}",
+            "message": "${{ github.event.pull_request.title }}",
+            "commit_id": "${{ github.event.pull_request.head.sha }}",
+            "files_changed": "${{ github.event.pull_request.changed_files }} files",
+            "additions": "${{ github.event.pull_request.additions }}",
+            "deletions": "${{ github.event.pull_request.deletions }}"
+          }' "${{ secrets.TEAMS_WEBHOOK_URL }}"
