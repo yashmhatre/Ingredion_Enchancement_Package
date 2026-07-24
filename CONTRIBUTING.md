@@ -1,7 +1,7 @@
-# Contributing to the Ingredion ELT Enhancement Project
+# Contributing to the Ingredion Enhancement Project
 
-Thanks for your interest in contributing! This document covers everything 
-you need to get set up locally, find something to work on, and submit 
+Thanks for your interest in contributing! This document covers everything
+you need to get set up locally, find something to work on, and submit
 changes.
 
 ---
@@ -16,6 +16,7 @@ changes.
 - [Commit Message Guidelines](#commit-message-guidelines)
 - [Making Changes](#making-changes)
 - [Testing Requirements](#testing-requirements)
+- [Documentation Expectations](#documentation-expectations)
 - [Submitting a Pull Request](#submitting-a-pull-request)
 - [Code Review Process](#code-review-process)
 - [Questions](#questions)
@@ -26,7 +27,7 @@ changes.
 
 - Pick up an open [issue](../../issues) labeled `good first issue` or `help wanted`
 - Report bugs by opening a new issue (use the **Task** or **Feature Request** template)
-- Improve documentation (README, code comments, this file)
+- Improve documentation (README, code comments, docs/ folder, this file)
 - Add or improve test coverage
 - Propose new features by opening a **Feature Request** issue before starting work
 
@@ -34,22 +35,25 @@ changes.
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/<your-org>/<repo-name>.git
-cd <repo-name>
+git clone https://github.com/yashmhatre/Ingredion_Enhancement_Package.git
+cd Ingredion_Enhancement_Package/bronze_json_loader
 
 # 2. Create a virtual environment
 python -m venv venv
 source venv/bin/activate      # Mac/Linux
 venv\Scripts\activate         # Windows
 
-# 3. Install dependencies
-pip install -r requirements.txt
+# 3. Install dependencies (includes pyspark, delta-spark, pytest via the dev extra)
+pip install -e ".[dev]"
 
 # 4. Run tests to confirm your setup works
-pytest tests/
+pytest
 ```
 
-> Update these steps if the project uses `poetry`, `conda`, or a different setup process.
+If you're setting up the Azure/Databricks environment from scratch
+(storage account, Unity Catalog, external volumes), see
+[azure_setup.md](../azure_setup.md) at the repo root — a validated,
+step-by-step runbook.
 
 ## Finding Something to Work On
 
@@ -57,8 +61,10 @@ pytest tests/
 2. Filter by label:
    - `good first issue` — small, well-scoped, low context needed
    - `help wanted` — actively looking for contributors
-   - Component labels (`bronze-layer`, `schema-validation`, `error-handling`, etc.) if you want to work in a specific area
-3. Check the [Project board](../../projects) — issues in the **Ready** column are scoped and available; issues in **Backlog** may still need refinement before starting
+   - `bug` / `enhancement` / `testing` — component-based filtering
+3. Check the [Project board](../../projects) — issues in the **Ready**
+   column are scoped and available; issues in **Backlog** may still need
+   refinement before starting
 
 ## Claiming an Issue
 
@@ -71,9 +77,9 @@ pytest tests/
 Use a short, descriptive branch name prefixed by type:
 
 ```
-feature/<short-description>     e.g. feature/schema-validation
-fix/<short-description>         e.g. fix/null-field-crash
-test/<short-description>        e.g. test/malformed-json-coverage
+feature/<short-description>     e.g. feature/multi-format-reader
+fix/<short-description>         e.g. fix/jsonl-discovery
+test/<short-description>        e.g. test/json-reader-validation
 docs/<short-description>        e.g. docs/update-readme
 ```
 
@@ -91,10 +97,11 @@ Types: `feat`, `fix`, `test`, `docs`, `refactor`, `chore`
 
 Example:
 ```
-feat: add dead-letter queue for malformed JSON records
+feat: retry-limit before quarantining permanently-failing files
 
-Routes invalid records to a quarantine folder with error metadata 
-instead of failing the full batch load.
+Files that fail ingestion (not just the archival move) are now tracked
+across runs and quarantined after N consecutive failures, instead of
+retrying forever with no signal that a human needs to intervene.
 ```
 
 ## Making Changes
@@ -103,20 +110,67 @@ instead of failing the full batch load.
    ```bash
    git checkout -b feature/your-feature-name
    ```
-2. Make your changes, keeping them scoped to the linked issue
-3. Follow existing code style/conventions in the repo
-4. Add or update tests for any new behavior
-5. Update documentation (README, docstrings, comments) if your change affects usage or setup
+2. **Open or reference a task/issue before starting significant work** —
+   this project follows a task-first workflow: draft the issue (context,
+   what needs to be done, acceptance criteria), then resolve it
+   incrementally, one file/step at a time, validating before moving on.
+   For anything beyond a trivial fix, this saves rework and keeps intent
+   traceable.
+3. Make your changes, keeping them scoped to the linked issue
+4. Follow existing code style/conventions in the repo — in particular:
+   - Config additions to `IngestionConfig` should be additive with sane
+     defaults (never break existing config files)
+   - New reader/writer logic should follow the existing dual-environment
+     pattern (`dbutils` when available, plain Python fallback otherwise —
+     see `directory_ingestion.py`'s `_try_dbutils_ls` / `_try_posix_ls`
+     for the pattern to follow)
+5. Add or update tests for any new behavior
+6. Update documentation (README, docstrings, `docs/` folder) if your
+   change affects usage, setup, or discovered a non-obvious gotcha others
+   are likely to hit
 
 ## Testing Requirements
 
-- All new features or bug fixes should include test coverage
-- Run the full test suite before opening a PR:
-  ```bash
-  pytest tests/
-  ```
-- All tests must pass locally before requesting review
-- If you're adding a new module/loader, add corresponding tests under `tests/`
+This project has two layers of testing — know which one your change needs:
+
+**1. Local pytest suite** (`bronze_json_loader/tests/`)
+```bash
+cd bronze_json_loader
+pytest
+```
+Covers config validation, flatten/quality logic, directory ingestion,
+file archival, and retry-limit behavior. Uses a local `SparkSession` —
+no Databricks connection needed, and the suite is also environment-aware
+enough to run directly on a Databricks cluster if needed (see
+`conftest.py`'s `spark` and `json_test_dir` fixtures for how that works).
+
+**2. Real-environment validation** (`bronze_json_loader/docs/` +
+associated notebooks), needed when a change touches:
+- Reading behavior against real cloud storage (see
+  `notebooks/validate_json_reader.py` and
+  [testing_json_reader.md](docs/testing_json_reader.md))
+- Deployment or job configuration (`databricks.yml`, notebook entrypoints)
+  — see [testing_end_to_end_deployment.md](docs/testing_end_to_end_deployment.md)
+  for the kind of validation expected before considering a deployment
+  change done
+
+**Before opening a PR:**
+- All local pytest tests pass
+- If your change affects deployment or real-storage behavior, note what
+  real-environment validation (if any) was done in the PR description
+- If you hit a genuine environment gotcha (stale config value, path
+  mismatch, unexpected Spark behavior) while testing, document it — see
+  below
+
+## Documentation Expectations
+
+If you discover something non-obvious while building or testing a
+change — a Spark behavior that surprised you, an environment
+misconfiguration, a bug in test infrastructure itself — write it down.
+The `docs/` folder's testing files are full of exactly this kind of
+finding, and they've repeatedly saved the next person from repeating the
+same debugging session. A good entry includes: what was expected, what
+actually happened, why, and how it was resolved.
 
 ## Submitting a Pull Request
 
@@ -126,7 +180,9 @@ instead of failing the full batch load.
    ```
 2. Open a PR against `main` — the PR template will auto-populate; fill it out completely
 3. Link the related issue using `Closes #<issue-number>` in the PR description
-4. Ensure CI checks pass (if configured)
+4. Ensure CI checks pass (once CI enforcement lands — see the enterprise
+   hardening roadmap; until then, confirm tests pass locally and note it
+   in the PR)
 5. Request review
 
 ## Code Review Process
@@ -139,5 +195,3 @@ instead of failing the full batch load.
 
 - Open a [Discussion](../../discussions) if enabled, or comment directly on the relevant issue
 - For anything unclear about expected behavior/schema, ask before implementing — it saves rework on both sides
-
-
